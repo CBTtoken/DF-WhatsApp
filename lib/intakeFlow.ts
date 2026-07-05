@@ -52,8 +52,7 @@ export const INTAKE_FIELDS: IntakeField[] = [
 
 export const FIRST_INTAKE_FIELD = INTAKE_FIELDS[0];
 
-export const INTAKE_COMPLETE_TEXT =
-  "Thanks, that's everything I need for now! Our team will be in touch about next steps.";
+export const INTAKE_COMPLETE_TEXT = "Thanks, that's everything I need for now!";
 
 export function getIntakeField(step: string): IntakeField | undefined {
   return INTAKE_FIELDS.find((field) => field.step === step);

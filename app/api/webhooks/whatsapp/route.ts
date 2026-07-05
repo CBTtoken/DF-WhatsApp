@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { encrypt } from "@/lib/crypto";
 import {
   createHandoffFlag,
   getFoundingNomadSlotsRemaining,
@@ -19,6 +20,12 @@ import {
   buildTierMenuText,
   buildTierOptions,
 } from "@/lib/menuCopy";
+import {
+  REGISTRATION_COMPLETE_TEXT,
+  REGISTRATION_PASSWORD_QUESTION,
+  REGISTRATION_USERNAME_QUESTION,
+  buildRegistrationPromptText,
+} from "@/lib/registrationCopy";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 
 // Meta calls this once, when you save the webhook config, to prove you control the endpoint.
@@ -96,7 +103,29 @@ async function handleIncomingMessage(message: { from?: string; type?: string; te
     return;
   }
 
-  // Sprint 4+ (registration, payment, etc.) picks up the conversation from here.
+  if (lead.current_step === "awaiting_registration") {
+    await sendWhatsAppText(from, REGISTRATION_USERNAME_QUESTION);
+    await updateLead(lead.id, { current_step: "awaiting_df_username" });
+    return;
+  }
+
+  if (lead.current_step === "awaiting_df_username") {
+    await sendWhatsAppText(from, REGISTRATION_PASSWORD_QUESTION);
+    await updateLead(lead.id, { df_username: text, current_step: "awaiting_df_password" });
+    return;
+  }
+
+  if (lead.current_step === "awaiting_df_password") {
+    await sendWhatsAppText(from, REGISTRATION_COMPLETE_TEXT);
+    await updateLead(lead.id, {
+      df_password_encrypted: encrypt(text),
+      registration_confirmed: true,
+      current_step: "registration_complete",
+    });
+    return;
+  }
+
+  // Sprint 5+ (payment, etc.) picks up the conversation from here.
 }
 
 async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
@@ -167,8 +196,9 @@ async function handleIntakeAnswer(
   const nextField = getNextIntakeField(field.step);
 
   if (!nextField) {
-    await updateLead(lead.id, { [field.column]: text, current_step: "intake_complete" });
+    await updateLead(lead.id, { [field.column]: text, current_step: "awaiting_registration" });
     await sendWhatsAppText(from, INTAKE_COMPLETE_TEXT);
+    await sendWhatsAppText(from, buildRegistrationPromptText());
     return;
   }
 
