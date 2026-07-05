@@ -3,6 +3,10 @@ import type { CSSProperties } from "react";
 import { confirmEftPayment, markPageLive, sendReply } from "@/lib/internalActions";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 
+// Without this, Next.js prerenders this page as static at build/deploy time, so the
+// list would only ever show whatever leads existed at the last deploy, not live data.
+export const dynamic = "force-dynamic";
+
 export default async function InternalInboxPage() {
   const supabase = getSupabaseAdmin();
   const { data: leads } = await supabase
