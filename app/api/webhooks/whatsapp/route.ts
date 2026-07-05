@@ -117,8 +117,16 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     return;
   }
 
+  const text = message.type === "text" ? message.text?.body?.trim() : undefined;
+
   if (lead.current_step === "handoff") {
-    return; // human has taken over, no bot fallback loop
+    // "restart" still works here, it's an explicit ask to disengage and start over,
+    // not an automatic bot loop back, so it doesn't undercut the human handoff.
+    if (text && isRestartCommand(text)) {
+      await handleRestart(lead, from, profileName);
+      return;
+    }
+    return; // human has taken over, no bot fallback loop otherwise
   }
 
   // Media messages only matter while we're waiting on an EFT proof of payment.
@@ -127,14 +135,13 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     return;
   }
 
-  const text = message.text?.body?.trim();
   if (message.type !== "text" || text === undefined) {
     return; // no other message types are meaningful outside the contexts above
   }
 
   // Global commands: only for leads already partway through (not brand new, not
-  // already handed off, that's silent by design), so someone who gets stuck,
-  // loses their message history, or wants to bail out isn't stuck with no way out.
+  // already handed off, handled above), so someone who gets stuck, loses their
+  // message history, or wants to bail out isn't stuck with no way out.
   if (lead.current_step && lead.current_step !== "main_menu") {
     if (isHelpCommand(text)) {
       await createHandoffFlag(lead.id, "User requested help mid-flow");
@@ -144,9 +151,7 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     }
 
     if (isRestartCommand(text)) {
-      await resetLead(lead.id);
-      await sendWhatsAppText(from, "No problem, let's start fresh!");
-      await sendWhatsAppText(from, buildGreetingText(profileName?.trim().split(/\s+/)[0] || "there"));
+      await handleRestart(lead, from, profileName);
       return;
     }
 
@@ -236,6 +241,12 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   }
 
   // Sprint 6+ (confirmation and handoff) picks up the conversation from here.
+}
+
+async function handleRestart(lead: Lead, from: string, profileName?: string) {
+  await resetLead(lead.id);
+  await sendWhatsAppText(from, "No problem, let's start fresh!");
+  await sendWhatsAppText(from, buildGreetingText(profileName?.trim().split(/\s+/)[0] || "there"));
 }
 
 async function handleEftProof(lead: Lead, message: IncomingMessage, from: string) {
