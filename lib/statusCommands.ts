@@ -3,6 +3,7 @@ import type { Lead } from "./leads";
 const HELP_KEYWORDS = ["help", "human", "agent", "talk to someone", "speak to someone", "talk to a person"];
 const RESTART_KEYWORDS = ["restart", "start over", "start again", "reset"];
 const MENU_KEYWORDS = ["menu", "status", "where am i", "recap"];
+const CONTINUE_KEYWORDS = ["continue", "resume", "carry on", "keep going", "back to where i was"];
 
 function normalize(text: string): string {
   return text.trim().toLowerCase();
@@ -18,6 +19,10 @@ export function isRestartCommand(text: string): boolean {
 
 export function isMenuCommand(text: string): boolean {
   return MENU_KEYWORDS.includes(normalize(text));
+}
+
+export function isContinueCommand(text: string): boolean {
+  return CONTINUE_KEYWORDS.includes(normalize(text));
 }
 
 const FIELD_LABELS: Record<string, string> = {

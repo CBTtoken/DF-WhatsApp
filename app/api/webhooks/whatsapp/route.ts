@@ -55,6 +55,7 @@ import {
 } from "@/lib/registrationCopy";
 import {
   buildProgressSummary,
+  isContinueCommand,
   isHelpCommand,
   isMenuCommand,
   isRestartCommand,
@@ -120,10 +121,15 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   const text = message.type === "text" ? message.text?.body?.trim() : undefined;
 
   if (lead.current_step === "handoff") {
-    // "restart" still works here, it's an explicit ask to disengage and start over,
-    // not an automatic bot loop back, so it doesn't undercut the human handoff.
+    // "restart" and "continue" still work here, they're explicit asks (disengage
+    // and start over, or pick back up), not an automatic bot loop back, so neither
+    // undercuts the human handoff itself.
     if (text && isRestartCommand(text)) {
       await handleRestart(lead, from, profileName);
+      return;
+    }
+    if (text && isContinueCommand(text)) {
+      await handleContinue(lead, from);
       return;
     }
     return; // human has taken over, no bot fallback loop otherwise
@@ -153,8 +159,11 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   if (lead.current_step && lead.current_step !== "main_menu") {
     if (isHelpCommand(text)) {
       await createHandoffFlag(lead.id, "User requested help mid-flow");
-      await updateLead(lead.id, { current_step: "handoff" });
-      await sendWhatsAppText(from, "No problem, I'll get a real person to help you out from here. 🙋");
+      await updateLead(lead.id, { paused_step: lead.current_step, current_step: "handoff" });
+      await sendWhatsAppText(
+        from,
+        "No problem, I'll get a real person to help you out. 🙋 Once you're sorted, just type *continue* and we'll pick up right where you left off."
+      );
       return;
     }
 
@@ -252,6 +261,22 @@ async function handleRestart(lead: Lead, from: string, profileName?: string) {
   await sendWhatsAppText(from, buildGreetingText(profileName?.trim().split(/\s+/)[0] || "there"));
 }
 
+async function handleContinue(lead: Lead, from: string) {
+  const pausedStep = lead.paused_step as string | null;
+
+  if (!pausedStep) {
+    await sendWhatsAppText(
+      from,
+      "I don't have anything to pick back up here, type *restart* if you'd like to start fresh."
+    );
+    return;
+  }
+
+  await updateLead(lead.id, { current_step: pausedStep, paused_step: null });
+  await sendWhatsAppText(from, "Great, let's carry on! 👍");
+  await sendWhatsAppText(from, await describeCurrentStep({ ...lead, current_step: pausedStep }));
+}
+
 async function handleEftProof(lead: Lead, message: IncomingMessage, from: string) {
   const mediaId = message.type === "image" ? message.image?.id : message.document?.id;
   if (!mediaId) return;
@@ -282,7 +307,7 @@ async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
     case "5":
       await sendWhatsAppText(from, HANDOFF_ACK_TEXT);
       await createHandoffFlag(lead.id, "Talk to a real person selected");
-      await updateLead(lead.id, { menu_selection: "5", current_step: "handoff" });
+      await updateLead(lead.id, { menu_selection: "5", paused_step: "main_menu", current_step: "handoff" });
       break;
     default:
       await sendWhatsAppText(from, INVALID_SELECTION_TEXT);
@@ -451,9 +476,9 @@ async function describeCurrentStep(lead: Lead): Promise<string> {
     case "awaiting_how_heard":
       return buildHowHeardQuestion();
     case "awaiting_payment_confirmation":
-      return EFT_PROOF_RECEIVED_TEXT;
+      return "You're all set! Our team is verifying your EFT payment and will be in touch soon to confirm.";
     case "awaiting_payment":
-      return PAY_NOW_CLOSING_TEXT;
+      return "You're all set! Just waiting for your payment to go through, you'll get a confirmation here automatically once it does.";
     default:
       return "Let's carry on, go ahead and reply to my last message whenever you're ready.";
   }

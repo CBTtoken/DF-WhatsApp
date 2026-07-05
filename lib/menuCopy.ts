@@ -7,7 +7,7 @@ const MENU_OPTIONS = `1. FAQ, quick answers
 export function buildGreetingText(firstName: string): string {
   return `Hi ${firstName}! 👋 Welcome to DigitalFlyer, so glad you're here.
 
-Quick tip, if you ever want to jump back to this menu, just type *menu* anytime.
+Quick tips: type *menu* anytime to jump back here, or *human* if you'd like to speak to a real person, we'll pick up right where you left off once you're ready.
 
 ${MENU_OPTIONS}
 
