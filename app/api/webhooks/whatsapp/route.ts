@@ -8,6 +8,7 @@ import {
   type Lead,
 } from "@/lib/leads";
 import { FIRST_INTAKE_FIELD, INTAKE_COMPLETE_TEXT, getIntakeField, getNextIntakeField } from "@/lib/intakeFlow";
+import { downloadAndStoreWhatsAppMedia } from "@/lib/media";
 import {
   INVALID_SELECTION_TEXT,
   MAIN_MENU_TEXT,
@@ -20,6 +21,17 @@ import {
   buildTierMenuText,
   buildTierOptions,
 } from "@/lib/menuCopy";
+import {
+  EFT_AWAITING_PROOF_TEXT,
+  EFT_PROOF_RECEIVED_TEXT,
+  PAYMENT_INIT_FAILED_TEXT,
+  PAYMENT_METHOD_INVALID_TEXT,
+  buildEftDetailsText,
+  buildPayNowLinkText,
+  buildPaymentMethodPromptText,
+} from "@/lib/paymentCopy";
+import { initializeTransaction } from "@/lib/paystack";
+import { calculateTotalCents } from "@/lib/pricing";
 import {
   REGISTRATION_COMPLETE_TEXT,
   REGISTRATION_PASSWORD_QUESTION,
@@ -63,13 +75,17 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({ received: true }, { status: 200 });
 }
 
-async function handleIncomingMessage(message: { from?: string; type?: string; text?: { body?: string } }) {
-  const from = message.from;
-  const text = message.text?.body?.trim();
+type IncomingMessage = {
+  from?: string;
+  type?: string;
+  text?: { body?: string };
+  image?: { id?: string };
+  document?: { id?: string };
+};
 
-  if (!from || message.type !== "text" || text === undefined) {
-    return; // only plain text messages drive the menu for now
-  }
+async function handleIncomingMessage(message: IncomingMessage) {
+  const from = message.from;
+  if (!from) return;
 
   const { lead, isNew } = await getOrCreateLead(from);
 
@@ -80,6 +96,17 @@ async function handleIncomingMessage(message: { from?: string; type?: string; te
 
   if (lead.current_step === "handoff") {
     return; // human has taken over, no bot fallback loop
+  }
+
+  // Media messages only matter while we're waiting on an EFT proof of payment.
+  if (lead.current_step === "awaiting_eft_proof" && (message.type === "image" || message.type === "document")) {
+    await handleEftProof(lead, message, from);
+    return;
+  }
+
+  const text = message.text?.body?.trim();
+  if (message.type !== "text" || text === undefined) {
+    return; // no other message types are meaningful outside the contexts above
   }
 
   if (lead.current_step === "main_menu") {
@@ -116,16 +143,74 @@ async function handleIncomingMessage(message: { from?: string; type?: string; te
   }
 
   if (lead.current_step === "awaiting_df_password") {
+    const amountCents = calculateTotalCents(lead.fork_selection as string | null, lead.tier_selection as string | null);
     await sendWhatsAppText(from, REGISTRATION_COMPLETE_TEXT);
+    await sendWhatsAppText(from, buildPaymentMethodPromptText(amountCents));
     await updateLead(lead.id, {
       df_password_encrypted: encrypt(text),
       registration_confirmed: true,
-      current_step: "registration_complete",
+      current_step: "awaiting_payment_method",
     });
     return;
   }
 
-  // Sprint 5+ (payment, etc.) picks up the conversation from here.
+  if (lead.current_step === "awaiting_payment_method") {
+    await handlePaymentMethodSelection(lead, text, from);
+    return;
+  }
+
+  if (lead.current_step === "awaiting_eft_proof") {
+    // Text instead of the actual proof image/PDF — nudge them back.
+    await sendWhatsAppText(from, EFT_AWAITING_PROOF_TEXT);
+    return;
+  }
+
+  // Sprint 6+ (confirmation and handoff) picks up the conversation from here.
+}
+
+async function handleEftProof(lead: Lead, message: IncomingMessage, from: string) {
+  const mediaId = message.type === "image" ? message.image?.id : message.document?.id;
+  if (!mediaId) return;
+
+  await downloadAndStoreWhatsAppMedia(mediaId, lead.id, "proof_of_payment");
+  await createHandoffFlag(lead.id, "EFT proof of payment received - needs manual verification");
+  await updateLead(lead.id, { current_step: "awaiting_payment_confirmation" });
+  await sendWhatsAppText(from, EFT_PROOF_RECEIVED_TEXT);
+}
+
+async function handlePaymentMethodSelection(lead: Lead, text: string, from: string) {
+  if (text === "1") {
+    await sendWhatsAppText(from, buildEftDetailsText(lead.business_name as string | null));
+    await updateLead(lead.id, {
+      payment_method: "eft",
+      payment_status: "pending",
+      current_step: "awaiting_eft_proof",
+    });
+    return;
+  }
+
+  if (text === "2") {
+    const amountCents = calculateTotalCents(lead.fork_selection as string | null, lead.tier_selection as string | null);
+    const reference = `df-${lead.id}`;
+
+    try {
+      const transaction = await initializeTransaction(lead.email as string, amountCents, reference);
+      await sendWhatsAppText(from, buildPayNowLinkText(transaction.authorization_url));
+      await updateLead(lead.id, {
+        payment_method: "pay_now",
+        payment_status: "pending",
+        paystack_reference: reference,
+        current_step: "awaiting_payment",
+      });
+    } catch (error) {
+      console.error("[payment] failed to initialize Paystack transaction", error);
+      await sendWhatsAppText(from, PAYMENT_INIT_FAILED_TEXT);
+      await createHandoffFlag(lead.id, "Paystack transaction initialization failed");
+    }
+    return;
+  }
+
+  await sendWhatsAppText(from, PAYMENT_METHOD_INVALID_TEXT);
 }
 
 async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
