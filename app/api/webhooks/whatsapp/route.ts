@@ -121,15 +121,22 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   const text = message.type === "text" ? message.text?.body?.trim() : undefined;
 
   if (lead.current_step === "handoff") {
-    // "restart" and "continue" still work here, they're explicit asks (disengage
-    // and start over, or pick back up), not an automatic bot loop back, so neither
-    // undercuts the human handoff itself.
+    // "restart", "continue", and "menu" still work here, they're explicit asks
+    // (disengage and start over, pick back up, or just check status), not an
+    // automatic bot loop back, so none of them undercut the human handoff itself.
     if (text && isRestartCommand(text)) {
       await handleRestart(lead, from, profileName);
       return;
     }
     if (text && isContinueCommand(text)) {
       await handleContinue(lead, from);
+      return;
+    }
+    if (text && isMenuCommand(text)) {
+      await sendWhatsAppText(
+        from,
+        "You're currently waiting on a member of our team to help you out. Type *continue* once you're ready to pick back up, or *restart* to start over."
+      );
       return;
     }
     return; // human has taken over, no bot fallback loop otherwise
