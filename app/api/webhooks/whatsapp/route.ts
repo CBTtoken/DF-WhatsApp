@@ -370,7 +370,9 @@ async function handlePaymentMethodSelection(lead: Lead, text: string, from: stri
 
   if (text === "2") {
     const amountCents = calculateTotalCents(lead.fork_selection as string | null, lead.tier_selection as string | null);
-    const reference = `df-${lead.id}`;
+    // Unique per attempt, not just per lead, since Meta can redeliver the same
+    // incoming message more than once, and Paystack rejects a re-used reference.
+    const reference = `df-${lead.id}-${Date.now()}`;
 
     try {
       const transaction = await initializeTransaction(lead.email as string, amountCents, reference);
