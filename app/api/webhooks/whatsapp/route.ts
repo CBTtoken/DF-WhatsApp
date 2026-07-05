@@ -139,19 +139,22 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     return; // no other message types are meaningful outside the contexts above
   }
 
-  // Global commands: only for leads already partway through (not brand new, not
-  // already handed off, handled above), so someone who gets stuck, loses their
-  // message history, or wants to bail out isn't stuck with no way out.
+  // "restart" always works, at any step, including right at the main menu, so it
+  // never gets mistaken for an invalid menu choice.
+  if (isRestartCommand(text)) {
+    await handleRestart(lead, from, profileName);
+    return;
+  }
+
+  // Remaining global commands: only for leads already partway through (not brand
+  // new, not already handed off, not sitting at the main menu where they don't
+  // apply), so someone who gets stuck, loses their message history, or wants help
+  // isn't stuck with no way out.
   if (lead.current_step && lead.current_step !== "main_menu") {
     if (isHelpCommand(text)) {
       await createHandoffFlag(lead.id, "User requested help mid-flow");
       await updateLead(lead.id, { current_step: "handoff" });
       await sendWhatsAppText(from, "No problem, I'll get a real person to help you out from here. 🙋");
-      return;
-    }
-
-    if (isRestartCommand(text)) {
-      await handleRestart(lead, from, profileName);
       return;
     }
 
