@@ -1,9 +1,15 @@
 import type { CSSProperties } from "react";
-import { buildPageLiveText } from "@/lib/closingCopy";
+import {
+  FACEBOOK_GROUP_BUTTON_TEXT,
+  FACEBOOK_PAGE_BUTTON_TEXT,
+  PAGE_LIVE_INTRO_TEXT,
+  getFacebookGroupUrl,
+  getFacebookPageUrl,
+} from "@/lib/closingCopy";
 import { confirmPayment, updateLead } from "@/lib/leads";
-import { PAYMENT_CONFIRMED_TEXT } from "@/lib/paymentCopy";
+import { buildPaymentConfirmedText } from "@/lib/paymentCopy";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendWhatsAppText } from "@/lib/whatsapp";
+import { sendWhatsAppCtaUrl, sendWhatsAppText } from "@/lib/whatsapp";
 
 async function sendReply(formData: FormData) {
   "use server";
@@ -33,14 +39,14 @@ async function confirmEftPayment(formData: FormData) {
   const supabase = getSupabaseAdmin();
   const { data: lead } = await supabase
     .from("leads")
-    .select("whatsapp_number, tier_selection")
+    .select("whatsapp_number, full_name, tier_selection")
     .eq("id", leadId)
     .single();
 
   if (!lead) return;
 
   await confirmPayment(leadId, lead.tier_selection);
-  await sendWhatsAppText(lead.whatsapp_number, PAYMENT_CONFIRMED_TEXT);
+  await sendWhatsAppText(lead.whatsapp_number, buildPaymentConfirmedText(lead.full_name));
 }
 
 async function markPageLive(formData: FormData) {
@@ -59,7 +65,19 @@ async function markPageLive(formData: FormData) {
   if (!lead) return;
 
   await updateLead(leadId, { page_live: true });
-  await sendWhatsAppText(lead.whatsapp_number, buildPageLiveText());
+
+  const pageUrl = getFacebookPageUrl();
+  const groupUrl = getFacebookGroupUrl();
+
+  if (pageUrl) {
+    await sendWhatsAppCtaUrl(lead.whatsapp_number, PAGE_LIVE_INTRO_TEXT, FACEBOOK_PAGE_BUTTON_TEXT, pageUrl);
+  } else {
+    await sendWhatsAppText(lead.whatsapp_number, PAGE_LIVE_INTRO_TEXT);
+  }
+
+  if (groupUrl) {
+    await sendWhatsAppCtaUrl(lead.whatsapp_number, "Join our community here.", FACEBOOK_GROUP_BUTTON_TEXT, groupUrl);
+  }
 }
 
 export default async function InternalInboxPage() {

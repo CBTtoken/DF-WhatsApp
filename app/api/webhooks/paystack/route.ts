@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { confirmPayment } from "@/lib/leads";
-import { PAYMENT_CONFIRMED_TEXT } from "@/lib/paymentCopy";
+import { buildPaymentConfirmedText } from "@/lib/paymentCopy";
 import { verifyTransaction } from "@/lib/paystack";
 import { calculateTotalCents } from "@/lib/pricing";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
@@ -54,7 +54,7 @@ async function handleChargeSuccess(reference: string) {
   const supabase = getSupabaseAdmin();
   const { data: lead } = await supabase
     .from("leads")
-    .select("id, whatsapp_number, fork_selection, tier_selection, payment_status")
+    .select("id, whatsapp_number, full_name, fork_selection, tier_selection, payment_status")
     .eq("paystack_reference", reference)
     .maybeSingle();
 
@@ -70,5 +70,5 @@ async function handleChargeSuccess(reference: string) {
   }
 
   await confirmPayment(lead.id, lead.tier_selection);
-  await sendWhatsAppText(lead.whatsapp_number, PAYMENT_CONFIRMED_TEXT);
+  await sendWhatsAppText(lead.whatsapp_number, buildPaymentConfirmedText(lead.full_name));
 }

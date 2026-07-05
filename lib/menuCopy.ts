@@ -1,49 +1,68 @@
-const MENU_OPTIONS = `1. Get started, build my page for me 🚀
-2. Talk to a real person`;
+const MENU_OPTIONS = `1. FAQ, quick answers
+2. More info, who we are
+3. Pricing and what's included
+4. Get started, build my page for me
+5. Talk to a real person`;
 
-export const MAIN_MENU_TEXT = `Hi there! 👋 Welcome to DigitalFlyer — great to have you here.
+export function buildGreetingText(firstName: string): string {
+  return `Hi ${firstName}! 👋 Welcome to DigitalFlyer, so glad you're here.
+
+Quick tip, if you ever want to jump back to this menu, just type *menu* anytime.
 
 ${MENU_OPTIONS}
 
-Reply with 1 or 2.`;
+Just reply with a number.`;
+}
 
-export const INVALID_SELECTION_TEXT = `Sorry, I didn't quite catch that. Please reply with 1 or 2:
+export const MENU_OPTIONS_TEXT = `${MENU_OPTIONS}\n\nJust reply with a number.`;
 
-${MENU_OPTIONS}`;
+export const INVALID_SELECTION_TEXT = "Sorry, I didn't quite catch that. Please reply with a number, 1 to 5.";
 
-export const OPTION_4_ACK_TEXT = `Got it 😊 I'll get a member of our team to reach out to you directly shortly.`;
+export const FAQ_TEXT = `*How much does it cost?*
+Just the DigitalFlyer webpage is R1,199 for the year if you build it yourself, or R1,599 for the year if you'd like our team to build it for you. No monthly fees, no hidden extras.`;
 
-export type TierOption = { label: string; value: string };
+export const MORE_INFO_TEXT =
+  "We're DigitalFlyer! We build small businesses a professional webpage, complete with eCommerce, WhatsApp integration, booking, a Google Maps listing, and marketplace presence. All done for you, so you can focus on running your business.";
 
-export function buildTierOptions(slotsRemaining: number): TierOption[] {
-  const options: TierOption[] = [];
+export const PRICING_TEXT = `Here's how pricing works.
 
+*Just want your DigitalFlyer webpage?*
+DIY, build it yourself, R1,199 for the year
+Done for you, our team builds it for you, R1,599 for the year
+No monthly fees, no hidden extras, valid for a full year.
+
+*Want the full RE:Biz Nomads experience?*
+Webpage plus community, a Deal Room, WhatsApp group, and monthly founder sessions.
+Founding member pricing, R750 for the year, locked in for life, only 100 spots.
+Once those spots are filled, R1,500 for the year.
+Payable upfront for the year, no other fees.
+
+Ready to get started? Reply *4*.`;
+
+export const HANDOFF_ACK_TEXT =
+  "Got it 😊 I'll get a member of our team to reach out to you directly shortly. If they take a while, you can message them directly at +27723110570.";
+
+export const FORK_TEXT = `Just one more thing before we get into the details, do you want just your DigitalFlyer webpage, or the full RE:Biz Nomads experience?
+
+1. Just my DigitalFlyer webpage
+2. RE:Biz Nomads, webpage plus community`;
+
+export const FORK_INVALID_TEXT = `Sorry, please reply with 1 or 2.
+
+${FORK_TEXT}`;
+
+export const DF_TYPE_TEXT = `Got it! Would you like to build it yourself, or have our team build it for you?
+
+1. DIY, R1,199 for the year
+2. Done for you, R1,599 for the year`;
+
+export const DF_TYPE_INVALID_TEXT = `Sorry, please reply with 1 or 2.
+
+${DF_TYPE_TEXT}`;
+
+export function buildReBizTierAckText(slotsRemaining: number): string {
   if (slotsRemaining > 0) {
-    options.push({
-      label: `Founding Nomad — R750/year, locked rate (${slotsRemaining} of 100 spots left)`,
-      value: "founding_nomad",
-    });
+    return "Amazing choice! You're in as a *Founding Nomad*, R750 for the year, locked in for life. 🎉";
   }
-
-  options.push({ label: "Nomad Standard — R1,500/year", value: "nomad_standard_annual" });
-  options.push({ label: "Nomad Standard — R500/quarter instalment", value: "nomad_standard_quarterly" });
-
-  return options;
-}
-
-export function buildTierMenuText(slotsRemaining: number): string {
-  const options = buildTierOptions(slotsRemaining);
-  const lines = options.map((option, index) => `${index + 1}. ${option.label}`).join("\n");
-
-  return `Our Founding Nomad spots are full for now, but here's what's available:
-
-${lines}
-
-Reply with a number.`;
-}
-
-export function buildTierInvalidText(slotsRemaining: number): string {
-  return `Sorry, please reply with one of the numbers shown.
-
-${buildTierMenuText(slotsRemaining)}`;
+  return "Amazing choice! RE:Biz Nomads membership is R1,500 for the year.";
 }

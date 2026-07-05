@@ -1,16 +1,14 @@
-export function buildPageLiveText(): string {
-  const pageUrl = process.env.FACEBOOK_PAGE_URL ?? "(Facebook page link pending)";
-  const groupUrl = process.env.FACEBOOK_GROUP_URL;
+export const PAGE_LIVE_INTRO_TEXT =
+  "🎉 Great news, your page is now live! Follow us here to stay in the loop.";
 
-  const links = groupUrl
-    ? `Facebook Page: ${pageUrl}\nFacebook Group: ${groupUrl}`
-    : `Facebook Page: ${pageUrl}`;
+export const FACEBOOK_PAGE_BUTTON_TEXT = "Follow our Page";
 
-  return `🎉 Great news — your page is now live!
+export const FACEBOOK_GROUP_BUTTON_TEXT = "Join our Group";
 
-Follow us here to stay in the loop:
+export function getFacebookPageUrl(): string | undefined {
+  return process.env.FACEBOOK_PAGE_URL;
+}
 
-${links}
-
-Welcome to DigitalFlyer!`;
+export function getFacebookGroupUrl(): string | undefined {
+  return process.env.FACEBOOK_GROUP_URL;
 }

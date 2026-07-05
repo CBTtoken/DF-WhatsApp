@@ -1,6 +1,6 @@
 const GRAPH_API_VERSION = "v21.0";
 
-export async function sendWhatsAppText(to: string, body: string) {
+async function sendMessage(payload: Record<string, unknown>) {
   const phoneNumberId = process.env.META_PHONE_NUMBER_ID;
   const token = process.env.META_WHATSAPP_TOKEN;
 
@@ -16,12 +16,7 @@ export async function sendWhatsAppText(to: string, body: string) {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        messaging_product: "whatsapp",
-        to,
-        type: "text",
-        text: { body },
-      }),
+      body: JSON.stringify({ messaging_product: "whatsapp", ...payload }),
     }
   );
 
@@ -30,4 +25,30 @@ export async function sendWhatsAppText(to: string, body: string) {
   }
 
   return response;
+}
+
+export async function sendWhatsAppText(to: string, body: string) {
+  return sendMessage({ to, type: "text", text: { body } });
+}
+
+// A tappable button instead of a raw URL in the message body, e.g. "Register Now"
+// linking out, rather than a long link the user has to trust and tap directly.
+export async function sendWhatsAppCtaUrl(
+  to: string,
+  bodyText: string,
+  buttonText: string,
+  url: string
+) {
+  return sendMessage({
+    to,
+    type: "interactive",
+    interactive: {
+      type: "cta_url",
+      body: { text: bodyText },
+      action: {
+        name: "cta_url",
+        parameters: { display_text: buttonText, url },
+      },
+    },
+  });
 }

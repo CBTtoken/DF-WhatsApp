@@ -3,11 +3,9 @@ export const HOW_HEARD_OPTIONS = ["Google", "Referral", "Facebook", "Email", "Ot
 export function buildHowHeardQuestion(): string {
   const lines = HOW_HEARD_OPTIONS.map((option, index) => `${index + 1}. ${option}`).join("\n");
 
-  return `Just one last question — how did you hear about us? 😊
+  return `Just one last question, how did you hear about us? 😊
 
-${lines}
-
-Reply with a number.`;
+${lines}`;
 }
 
 export const HOW_HEARD_INVALID_TEXT = `Sorry, please reply with one of the numbers shown.

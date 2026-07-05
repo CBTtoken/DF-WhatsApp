@@ -47,7 +47,7 @@ export function buildProgressSummary(lead: Lead): string {
     .filter((line): line is string => Boolean(line));
 
   if (lines.length === 0) {
-    return "Here's what I have so far — nothing captured just yet!";
+    return "Here's what I have so far, nothing captured just yet!";
   }
 
   return `Here's what I have so far:\n\n${lines.join("\n")}`;
