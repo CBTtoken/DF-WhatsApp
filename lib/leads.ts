@@ -90,3 +90,25 @@ export async function getFoundingNomadSlotsRemaining(): Promise<number> {
   if (error) throw error;
   return Math.max(0, data.slots_total - data.slots_filled);
 }
+
+// Shared by the Paystack webhook (automatic, Pay Now) and the internal inbox's
+// "Confirm EFT Payment" action (manual), so both paths behave identically.
+export async function confirmPayment(leadId: string, tierSelection: string | null | undefined) {
+  await updateLead(leadId, { payment_status: "confirmed" });
+
+  if (tierSelection === "founding_nomad") {
+    const supabase = getSupabaseAdmin();
+    const { data: counter } = await supabase
+      .from("founding_nomad_counter")
+      .select("slots_filled")
+      .eq("id", 1)
+      .single();
+
+    if (counter) {
+      await supabase
+        .from("founding_nomad_counter")
+        .update({ slots_filled: counter.slots_filled + 1 })
+        .eq("id", 1);
+    }
+  }
+}

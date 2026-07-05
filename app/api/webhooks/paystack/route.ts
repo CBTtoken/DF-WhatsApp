@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { confirmPayment } from "@/lib/leads";
 import { PAYMENT_CONFIRMED_TEXT } from "@/lib/paymentCopy";
 import { verifyTransaction } from "@/lib/paystack";
 import { calculateTotalCents } from "@/lib/pricing";
@@ -68,25 +69,6 @@ async function handleChargeSuccess(reference: string) {
     return;
   }
 
-  await supabase
-    .from("leads")
-    .update({ payment_status: "confirmed", updated_at: new Date().toISOString() })
-    .eq("id", lead.id);
-
-  if (lead.tier_selection === "founding_nomad") {
-    const { data: counter } = await supabase
-      .from("founding_nomad_counter")
-      .select("slots_filled")
-      .eq("id", 1)
-      .single();
-
-    if (counter) {
-      await supabase
-        .from("founding_nomad_counter")
-        .update({ slots_filled: counter.slots_filled + 1 })
-        .eq("id", 1);
-    }
-  }
-
+  await confirmPayment(lead.id, lead.tier_selection);
   await sendWhatsAppText(lead.whatsapp_number, PAYMENT_CONFIRMED_TEXT);
 }
