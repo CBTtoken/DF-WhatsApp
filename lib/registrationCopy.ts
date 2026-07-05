@@ -11,4 +11,4 @@ export const REGISTRATION_USERNAME_QUESTION = "What's the email address you regi
 export const REGISTRATION_PASSWORD_QUESTION = "And the password you set for that account?";
 
 export const REGISTRATION_COMPLETE_TEXT =
-  "Perfect, got it! Our team will take it from here to get your page built.";
+  "Thank you for your information, our team will start as soon as the confirmation of payment is received, simply click on the link in the next message. 😊";

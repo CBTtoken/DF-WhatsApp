@@ -7,16 +7,21 @@ import {
   updateLead,
   type Lead,
 } from "@/lib/leads";
-import { FIRST_INTAKE_FIELD, INTAKE_COMPLETE_TEXT, getIntakeField, getNextIntakeField } from "@/lib/intakeFlow";
+import {
+  FIRST_INTAKE_FIELD,
+  INTAKE_COMPLETE_TEXT,
+  formatIntakeInvalid,
+  formatIntakeQuestion,
+  getIntakeField,
+  getNextIntakeField,
+  type IntakeField,
+} from "@/lib/intakeFlow";
+import { HOW_HEARD_INVALID_TEXT, buildHowHeardQuestion, resolveHowHeardAnswer } from "@/lib/howHeard";
 import { downloadAndStoreWhatsAppMedia } from "@/lib/media";
 import {
   INVALID_SELECTION_TEXT,
   MAIN_MENU_TEXT,
-  OPTION_1_TEXT,
-  OPTION_2_TEXT,
   OPTION_4_ACK_TEXT,
-  buildForkInvalidText,
-  buildForkMenuText,
   buildTierInvalidText,
   buildTierMenuText,
   buildTierOptions,
@@ -24,6 +29,7 @@ import {
 import {
   EFT_AWAITING_PROOF_TEXT,
   EFT_PROOF_RECEIVED_TEXT,
+  PAY_NOW_CLOSING_TEXT,
   PAYMENT_INIT_FAILED_TEXT,
   PAYMENT_METHOD_INVALID_TEXT,
   buildEftDetailsText,
@@ -114,11 +120,6 @@ async function handleIncomingMessage(message: IncomingMessage) {
     return;
   }
 
-  if (lead.current_step === "fork") {
-    await handleForkSelection(lead, text, from);
-    return;
-  }
-
   if (lead.current_step === "fork_tier") {
     await handleTierSelection(lead, text, from);
     return;
@@ -165,6 +166,11 @@ async function handleIncomingMessage(message: IncomingMessage) {
     return;
   }
 
+  if (lead.current_step === "awaiting_how_heard") {
+    await handleHowHeardAnswer(lead, text, from);
+    return;
+  }
+
   // Sprint 6+ (confirmation and handoff) picks up the conversation from here.
 }
 
@@ -174,8 +180,84 @@ async function handleEftProof(lead: Lead, message: IncomingMessage, from: string
 
   await downloadAndStoreWhatsAppMedia(mediaId, lead.id, "proof_of_payment");
   await createHandoffFlag(lead.id, "EFT proof of payment received - needs manual verification");
-  await updateLead(lead.id, { current_step: "awaiting_payment_confirmation" });
-  await sendWhatsAppText(from, EFT_PROOF_RECEIVED_TEXT);
+  await updateLead(lead.id, { current_step: "awaiting_how_heard" });
+  await sendWhatsAppText(from, buildHowHeardQuestion());
+}
+
+async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
+  switch (text) {
+    case "1": {
+      const slotsRemaining = await getFoundingNomadSlotsRemaining();
+
+      if (slotsRemaining > 0) {
+        // RE:Biz Nomads is the only option on offer for now, and Founding Nomad slots
+        // remain — skip the fork/tier questions entirely and go straight to intake.
+        await updateLead(lead.id, {
+          menu_selection: "1",
+          fork_selection: "re_biz_nomads",
+          tier_selection: "founding_nomad",
+          current_step: FIRST_INTAKE_FIELD.step,
+        });
+        await sendWhatsAppText(from, formatIntakeQuestion(FIRST_INTAKE_FIELD));
+      } else {
+        // Founding Nomad is full — fall back to the tier menu (Standard/quarterly only).
+        await sendWhatsAppText(from, buildTierMenuText(slotsRemaining));
+        await updateLead(lead.id, {
+          menu_selection: "1",
+          fork_selection: "re_biz_nomads",
+          current_step: "fork_tier",
+        });
+      }
+      break;
+    }
+    case "2":
+      await sendWhatsAppText(from, OPTION_4_ACK_TEXT);
+      await createHandoffFlag(lead.id, "Talk to a real person selected");
+      await updateLead(lead.id, { menu_selection: "2", current_step: "handoff" });
+      break;
+    default:
+      await sendWhatsAppText(from, INVALID_SELECTION_TEXT);
+      break;
+  }
+}
+
+async function handleTierSelection(lead: Lead, text: string, from: string) {
+  const slotsRemaining = await getFoundingNomadSlotsRemaining();
+  const options = buildTierOptions(slotsRemaining);
+  const selected = options[Number(text) - 1];
+
+  if (!selected) {
+    await sendWhatsAppText(from, buildTierInvalidText(slotsRemaining));
+    return;
+  }
+
+  await updateLead(lead.id, { tier_selection: selected.value, current_step: FIRST_INTAKE_FIELD.step });
+  await sendWhatsAppText(from, formatIntakeQuestion(FIRST_INTAKE_FIELD));
+}
+
+async function handleIntakeAnswer(lead: Lead, field: IntakeField, text: string, from: string) {
+  let valueToStore: string = text;
+
+  if (field.options) {
+    const resolved = field.options[Number(text) - 1];
+    if (!resolved) {
+      await sendWhatsAppText(from, formatIntakeInvalid(field));
+      return;
+    }
+    valueToStore = resolved;
+  }
+
+  const nextField = getNextIntakeField(field.step);
+
+  if (!nextField) {
+    await updateLead(lead.id, { [field.column]: valueToStore, current_step: "awaiting_registration" });
+    await sendWhatsAppText(from, INTAKE_COMPLETE_TEXT);
+    await sendWhatsAppText(from, buildRegistrationPromptText());
+    return;
+  }
+
+  await updateLead(lead.id, { [field.column]: valueToStore, current_step: nextField.step });
+  await sendWhatsAppText(from, formatIntakeQuestion(nextField));
 }
 
 async function handlePaymentMethodSelection(lead: Lead, text: string, from: string) {
@@ -196,11 +278,12 @@ async function handlePaymentMethodSelection(lead: Lead, text: string, from: stri
     try {
       const transaction = await initializeTransaction(lead.email as string, amountCents, reference);
       await sendWhatsAppText(from, buildPayNowLinkText(transaction.authorization_url));
+      await sendWhatsAppText(from, buildHowHeardQuestion());
       await updateLead(lead.id, {
         payment_method: "pay_now",
         payment_status: "pending",
         paystack_reference: reference,
-        current_step: "awaiting_payment",
+        current_step: "awaiting_how_heard",
       });
     } catch (error) {
       console.error("[payment] failed to initialize Paystack transaction", error);
@@ -213,80 +296,20 @@ async function handlePaymentMethodSelection(lead: Lead, text: string, from: stri
   await sendWhatsAppText(from, PAYMENT_METHOD_INVALID_TEXT);
 }
 
-async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
-  switch (text) {
-    case "1":
-      await sendWhatsAppText(from, OPTION_1_TEXT);
-      break;
-    case "2":
-      await sendWhatsAppText(from, OPTION_2_TEXT);
-      break;
-    case "3": {
-      const slotsRemaining = await getFoundingNomadSlotsRemaining();
-      await sendWhatsAppText(from, buildForkMenuText(slotsRemaining));
-      await updateLead(lead.id, { menu_selection: "3", current_step: "fork" });
-      break;
-    }
-    case "4":
-      await sendWhatsAppText(from, OPTION_4_ACK_TEXT);
-      await createHandoffFlag(lead.id, "Option 4 selected - user requested a real person");
-      await updateLead(lead.id, { menu_selection: "4", current_step: "handoff" });
-      break;
-    default:
-      await sendWhatsAppText(from, INVALID_SELECTION_TEXT);
-      break;
-  }
-}
+async function handleHowHeardAnswer(lead: Lead, text: string, from: string) {
+  const resolved = resolveHowHeardAnswer(text);
 
-async function handleForkSelection(lead: Lead, text: string, from: string) {
-  if (text === "1") {
-    const slotsRemaining = await getFoundingNomadSlotsRemaining();
-    await sendWhatsAppText(from, buildTierMenuText(slotsRemaining));
-    await updateLead(lead.id, { fork_selection: "re_biz_nomads", current_step: "fork_tier" });
+  if (!resolved) {
+    await sendWhatsAppText(from, HOW_HEARD_INVALID_TEXT);
     return;
   }
 
-  if (text === "2") {
-    await updateLead(lead.id, { fork_selection: "df_only", current_step: FIRST_INTAKE_FIELD.step });
-    await sendWhatsAppText(from, FIRST_INTAKE_FIELD.question);
+  if (lead.payment_method === "eft") {
+    await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment_confirmation" });
+    await sendWhatsAppText(from, EFT_PROOF_RECEIVED_TEXT);
     return;
   }
 
-  const slotsRemaining = await getFoundingNomadSlotsRemaining();
-  await sendWhatsAppText(from, buildForkInvalidText(slotsRemaining));
-}
-
-async function handleTierSelection(lead: Lead, text: string, from: string) {
-  const slotsRemaining = await getFoundingNomadSlotsRemaining();
-  const options = buildTierOptions(slotsRemaining);
-  const selected = options[Number(text) - 1];
-
-  if (!selected) {
-    await sendWhatsAppText(from, buildTierInvalidText(slotsRemaining));
-    return;
-  }
-
-  // founding_nomad_counter.slots_filled increments on confirmed payment (Sprint 5),
-  // not here, so an abandoned signup never permanently occupies a slot.
-  await updateLead(lead.id, { tier_selection: selected.value, current_step: FIRST_INTAKE_FIELD.step });
-  await sendWhatsAppText(from, FIRST_INTAKE_FIELD.question);
-}
-
-async function handleIntakeAnswer(
-  lead: Lead,
-  field: { step: string; column: string },
-  text: string,
-  from: string
-) {
-  const nextField = getNextIntakeField(field.step);
-
-  if (!nextField) {
-    await updateLead(lead.id, { [field.column]: text, current_step: "awaiting_registration" });
-    await sendWhatsAppText(from, INTAKE_COMPLETE_TEXT);
-    await sendWhatsAppText(from, buildRegistrationPromptText());
-    return;
-  }
-
-  await updateLead(lead.id, { [field.column]: text, current_step: nextField.step });
-  await sendWhatsAppText(from, nextField.question);
+  await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment" });
+  await sendWhatsAppText(from, PAY_NOW_CLOSING_TEXT);
 }
