@@ -1,84 +1,7 @@
+import Link from "next/link";
 import type { CSSProperties } from "react";
-import {
-  FACEBOOK_GROUP_BUTTON_TEXT,
-  FACEBOOK_PAGE_BUTTON_TEXT,
-  PAGE_LIVE_INTRO_TEXT,
-  getFacebookGroupUrl,
-  getFacebookPageUrl,
-} from "@/lib/closingCopy";
-import { confirmPayment, updateLead } from "@/lib/leads";
-import { buildPaymentConfirmedText } from "@/lib/paymentCopy";
+import { confirmEftPayment, markPageLive, sendReply } from "@/lib/internalActions";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { sendWhatsAppCtaUrl, sendWhatsAppText } from "@/lib/whatsapp";
-
-async function sendReply(formData: FormData) {
-  "use server";
-
-  const leadId = formData.get("leadId")?.toString();
-  const message = formData.get("message")?.toString().trim();
-  if (!leadId || !message) return;
-
-  const supabase = getSupabaseAdmin();
-  const { data: lead } = await supabase
-    .from("leads")
-    .select("whatsapp_number")
-    .eq("id", leadId)
-    .single();
-
-  if (!lead) return;
-
-  await sendWhatsAppText(lead.whatsapp_number, message);
-}
-
-async function confirmEftPayment(formData: FormData) {
-  "use server";
-
-  const leadId = formData.get("leadId")?.toString();
-  if (!leadId) return;
-
-  const supabase = getSupabaseAdmin();
-  const { data: lead } = await supabase
-    .from("leads")
-    .select("whatsapp_number, full_name, tier_selection")
-    .eq("id", leadId)
-    .single();
-
-  if (!lead) return;
-
-  await confirmPayment(leadId, lead.tier_selection);
-  await sendWhatsAppText(lead.whatsapp_number, buildPaymentConfirmedText(lead.full_name));
-}
-
-async function markPageLive(formData: FormData) {
-  "use server";
-
-  const leadId = formData.get("leadId")?.toString();
-  if (!leadId) return;
-
-  const supabase = getSupabaseAdmin();
-  const { data: lead } = await supabase
-    .from("leads")
-    .select("whatsapp_number")
-    .eq("id", leadId)
-    .single();
-
-  if (!lead) return;
-
-  await updateLead(leadId, { page_live: true });
-
-  const pageUrl = getFacebookPageUrl();
-  const groupUrl = getFacebookGroupUrl();
-
-  if (pageUrl) {
-    await sendWhatsAppCtaUrl(lead.whatsapp_number, PAGE_LIVE_INTRO_TEXT, FACEBOOK_PAGE_BUTTON_TEXT, pageUrl);
-  } else {
-    await sendWhatsAppText(lead.whatsapp_number, PAGE_LIVE_INTRO_TEXT);
-  }
-
-  if (groupUrl) {
-    await sendWhatsAppCtaUrl(lead.whatsapp_number, "Join our community here.", FACEBOOK_GROUP_BUTTON_TEXT, groupUrl);
-  }
-}
 
 export default async function InternalInboxPage() {
   const supabase = getSupabaseAdmin();
@@ -90,7 +13,7 @@ export default async function InternalInboxPage() {
     .order("updated_at", { ascending: false });
 
   return (
-    <main style={{ maxWidth: 1100, margin: "40px auto", fontFamily: "sans-serif" }}>
+    <main style={{ maxWidth: 1150, margin: "40px auto", fontFamily: "sans-serif" }}>
       <h1>Leads Inbox</h1>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
@@ -101,6 +24,7 @@ export default async function InternalInboxPage() {
             <th style={cellStyle}>Step</th>
             <th style={cellStyle}>Payment</th>
             <th style={cellStyle}>Updated</th>
+            <th style={cellStyle}>Details</th>
             <th style={cellStyle}>Actions</th>
             <th style={cellStyle}>Reply</th>
           </tr>
@@ -110,7 +34,10 @@ export default async function InternalInboxPage() {
             const needsHandoff = (lead.handoff_flags ?? []).some(
               (flag: { resolved: boolean }) => !flag.resolved
             );
-            const needsEftConfirm = lead.payment_method === "eft" && lead.payment_status === "pending";
+            // Only true once proof has actually been submitted, not the moment EFT is
+            // picked, there's nothing to confirm yet at that point.
+            const needsEftConfirm =
+              lead.payment_method === "eft" && lead.current_step === "awaiting_payment_confirmation";
             const needsPageLive = lead.payment_status === "confirmed" && !lead.page_live;
 
             return (
@@ -127,6 +54,9 @@ export default async function InternalInboxPage() {
                   {lead.page_live && <div style={{ color: "green", fontSize: 12 }}>Page live</div>}
                 </td>
                 <td style={cellStyle}>{new Date(lead.updated_at).toLocaleString()}</td>
+                <td style={cellStyle}>
+                  <Link href={`/internal/${lead.id}`}>View</Link>
+                </td>
                 <td style={cellStyle}>
                   {needsEftConfirm && (
                     <form action={confirmEftPayment}>

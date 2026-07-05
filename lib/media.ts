@@ -50,3 +50,19 @@ export async function downloadAndStoreWhatsAppMedia(
 
   return storagePath;
 }
+
+// media_attachments is a private bucket, so viewing a file from the internal inbox
+// needs a time-limited signed URL rather than a public one.
+export async function getSignedMediaUrl(storagePath: string, expiresInSeconds = 3600): Promise<string | null> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase.storage
+    .from("media_attachments")
+    .createSignedUrl(storagePath, expiresInSeconds);
+
+  if (error) {
+    console.error("[media] failed to create signed URL", error);
+    return null;
+  }
+
+  return data.signedUrl;
+}
