@@ -34,6 +34,54 @@ ${MENU_OPTIONS_HIGHLIGHT_3}
 
 Reply with a number (1-4).`;
 
-export const OPTION_3_ACK_TEXT = `Great, let's get your page built! I'll ask you a few quick questions next.`;
-
 export const OPTION_4_ACK_TEXT = `Got it — I'll get a member of our team to reach out to you directly.`;
+
+export function buildForkMenuText(slotsRemaining: number): string {
+  return `Great, let's get your page built! Most new members join as RE:Biz Nomads — same professional webpage, plus the community: a Deal Room, WhatsApp group, and monthly founder sessions. Founding Nomad pricing is locked for the first 100 members and ${slotsRemaining} spot${slotsRemaining === 1 ? "" : "s"} left.
+
+1. Join RE:Biz Nomads
+2. Just the webpage, DigitalFlyer only
+
+Reply with 1 or 2.`;
+}
+
+export function buildForkInvalidText(slotsRemaining: number): string {
+  return `Sorry, please reply with 1 or 2.
+
+${buildForkMenuText(slotsRemaining)}`;
+}
+
+export type TierOption = { label: string; value: string };
+
+export function buildTierOptions(slotsRemaining: number): TierOption[] {
+  const options: TierOption[] = [];
+
+  if (slotsRemaining > 0) {
+    options.push({
+      label: `Founding Nomad — R750/year, locked rate (${slotsRemaining} of 100 spots left)`,
+      value: "founding_nomad",
+    });
+  }
+
+  options.push({ label: "Nomad Standard — R1,500/year", value: "nomad_standard_annual" });
+  options.push({ label: "Nomad Standard — R500/quarter instalment", value: "nomad_standard_quarterly" });
+
+  return options;
+}
+
+export function buildTierMenuText(slotsRemaining: number): string {
+  const options = buildTierOptions(slotsRemaining);
+  const lines = options.map((option, index) => `${index + 1}. ${option.label}`).join("\n");
+
+  return `Which RE:Biz Nomads tier would you like?
+
+${lines}
+
+Reply with a number.`;
+}
+
+export function buildTierInvalidText(slotsRemaining: number): string {
+  return `Sorry, please reply with one of the numbers shown.
+
+${buildTierMenuText(slotsRemaining)}`;
+}

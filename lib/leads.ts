@@ -49,3 +49,15 @@ export async function createHandoffFlag(leadId: string, reason: string) {
 
   if (error) throw error;
 }
+
+export async function getFoundingNomadSlotsRemaining(): Promise<number> {
+  const supabase = getSupabaseAdmin();
+  const { data, error } = await supabase
+    .from("founding_nomad_counter")
+    .select("slots_filled, slots_total")
+    .eq("id", 1)
+    .single();
+
+  if (error) throw error;
+  return Math.max(0, data.slots_total - data.slots_filled);
+}
