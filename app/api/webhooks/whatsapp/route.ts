@@ -4,6 +4,7 @@ import {
   createHandoffFlag,
   getFoundingNomadSlotsRemaining,
   getOrCreateLead,
+  resetLead,
   updateLead,
   type Lead,
 } from "@/lib/leads";
@@ -44,6 +45,12 @@ import {
   REGISTRATION_USERNAME_QUESTION,
   buildRegistrationPromptText,
 } from "@/lib/registrationCopy";
+import {
+  buildProgressSummary,
+  isHelpCommand,
+  isMenuCommand,
+  isRestartCommand,
+} from "@/lib/statusCommands";
 import { sendWhatsAppText } from "@/lib/whatsapp";
 
 // Meta calls this once, when you save the webhook config, to prove you control the endpoint.
@@ -113,6 +120,31 @@ async function handleIncomingMessage(message: IncomingMessage) {
   const text = message.text?.body?.trim();
   if (message.type !== "text" || text === undefined) {
     return; // no other message types are meaningful outside the contexts above
+  }
+
+  // Global commands: only for leads already partway through (not brand new, not
+  // already handed off — that's silent by design), so someone who gets stuck,
+  // loses their message history, or wants to bail out isn't stuck with no way out.
+  if (lead.current_step && lead.current_step !== "main_menu") {
+    if (isHelpCommand(text)) {
+      await createHandoffFlag(lead.id, "User requested help mid-flow");
+      await updateLead(lead.id, { current_step: "handoff" });
+      await sendWhatsAppText(from, "No problem, I'll get a real person to help you out from here. 🙋");
+      return;
+    }
+
+    if (isRestartCommand(text)) {
+      await resetLead(lead.id);
+      await sendWhatsAppText(from, "No problem, let's start fresh!");
+      await sendWhatsAppText(from, MAIN_MENU_TEXT);
+      return;
+    }
+
+    if (isMenuCommand(text)) {
+      await sendWhatsAppText(from, buildProgressSummary(lead));
+      await sendWhatsAppText(from, await describeCurrentStep(lead));
+      return;
+    }
   }
 
   if (lead.current_step === "main_menu") {
@@ -312,4 +344,44 @@ async function handleHowHeardAnswer(lead: Lead, text: string, from: string) {
 
   await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment" });
   await sendWhatsAppText(from, PAY_NOW_CLOSING_TEXT);
+}
+
+// Re-shows whatever the lead is currently waiting on, reusing the same copy each step
+// already sends — used by the "menu"/"status" command so a resumed conversation asks
+// the exact same thing again rather than a generic restatement.
+async function describeCurrentStep(lead: Lead): Promise<string> {
+  const step = lead.current_step ?? "";
+
+  const intakeField = getIntakeField(step);
+  if (intakeField) return formatIntakeQuestion(intakeField);
+
+  switch (step) {
+    case "fork_tier": {
+      const slotsRemaining = await getFoundingNomadSlotsRemaining();
+      return buildTierMenuText(slotsRemaining);
+    }
+    case "awaiting_registration":
+      return buildRegistrationPromptText();
+    case "awaiting_df_username":
+      return REGISTRATION_USERNAME_QUESTION;
+    case "awaiting_df_password":
+      return REGISTRATION_PASSWORD_QUESTION;
+    case "awaiting_payment_method": {
+      const amountCents = calculateTotalCents(
+        lead.fork_selection as string | null,
+        lead.tier_selection as string | null
+      );
+      return buildPaymentMethodPromptText(amountCents);
+    }
+    case "awaiting_eft_proof":
+      return buildEftDetailsText(lead.business_name as string | null);
+    case "awaiting_how_heard":
+      return buildHowHeardQuestion();
+    case "awaiting_payment_confirmation":
+      return EFT_PROOF_RECEIVED_TEXT;
+    case "awaiting_payment":
+      return PAY_NOW_CLOSING_TEXT;
+    default:
+      return "Let's carry on — go ahead and reply to my last message whenever you're ready.";
+  }
 }
