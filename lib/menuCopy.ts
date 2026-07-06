@@ -5,7 +5,7 @@ const MENU_OPTIONS = `1. FAQ, quick answers
 5. Talk to a real person`;
 
 export function buildGreetingText(firstName: string): string {
-  return `Hi ${firstName}! 👋 Welcome to DigitalFlyer, so glad you're here.
+  return `Welcome to DigitalFlyer SA! 👋 Hi ${firstName}, so glad you're here.
 
 Quick tips: type *menu* anytime to jump back here, or *human* if you'd like to speak to a real person, we'll pick up right where you left off once you're ready.
 

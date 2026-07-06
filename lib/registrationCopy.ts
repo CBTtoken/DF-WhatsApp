@@ -1,5 +1,5 @@
 export const REGISTRATION_CTA_BODY_TEXT =
-  "Next, let's get you set up on the DigitalFlyer platform. Once you're registered, just reply here and I'll grab your login details so our team can get started.";
+  "Next, let's get you set up on the DigitalFlyer platform. If you already have an account and just want to renew or have us build your page, you can skip registering for now, just still share your login details below so our team can access it.\n\nOnce you're registered (or ready to share your details), come back to WhatsApp and start your next message with 'Done' to continue.";
 
 export const REGISTRATION_CTA_BUTTON_TEXT = "Register Now";
 

@@ -36,7 +36,6 @@ import {
 import {
   EFT_AWAITING_PROOF_TEXT,
   EFT_PROOF_RECEIVED_TEXT,
-  PAY_NOW_CLOSING_TEXT,
   PAY_NOW_CTA_BODY_TEXT,
   PAY_NOW_CTA_BUTTON_TEXT,
   PAYMENT_INIT_FAILED_TEXT,
@@ -233,12 +232,11 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   }
 
   if (lead.current_step === "awaiting_df_password") {
-    const amountCents = calculateTotalCents(lead.fork_selection as string | null, lead.tier_selection as string | null);
-    await sendWhatsAppText(from, buildPaymentIntroText(amountCents));
+    await sendWhatsAppText(from, buildHowHeardQuestion());
     await updateLead(lead.id, {
       df_password_encrypted: encrypt(text),
       registration_confirmed: true,
-      current_step: "awaiting_payment_method",
+      current_step: "awaiting_how_heard",
     });
     return;
   }
@@ -290,8 +288,8 @@ async function handleEftProof(lead: Lead, message: IncomingMessage, from: string
 
   await downloadAndStoreWhatsAppMedia(mediaId, lead.id, "proof_of_payment");
   await createHandoffFlag(lead.id, "EFT proof of payment received - needs manual verification");
-  await updateLead(lead.id, { current_step: "awaiting_how_heard" });
-  await sendWhatsAppText(from, buildHowHeardQuestion());
+  await updateLead(lead.id, { current_step: "awaiting_payment_confirmation" });
+  await sendWhatsAppText(from, EFT_PROOF_RECEIVED_TEXT);
 }
 
 async function handleMainMenuSelection(lead: Lead, text: string, from: string) {
@@ -409,12 +407,11 @@ async function handlePaymentMethodSelection(lead: Lead, text: string, from: stri
     try {
       const transaction = await initializeTransaction(lead.email as string, amountCents, reference);
       await sendWhatsAppCtaUrl(from, PAY_NOW_CTA_BODY_TEXT, PAY_NOW_CTA_BUTTON_TEXT, transaction.authorization_url);
-      await sendWhatsAppText(from, buildHowHeardQuestion());
       await updateLead(lead.id, {
         payment_method: "pay_now",
         payment_status: "pending",
         paystack_reference: reference,
-        current_step: "awaiting_how_heard",
+        current_step: "awaiting_payment",
       });
     } catch (error) {
       console.error("[payment] failed to initialize Paystack transaction", error);
@@ -435,14 +432,9 @@ async function handleHowHeardAnswer(lead: Lead, text: string, from: string) {
     return;
   }
 
-  if (lead.payment_method === "eft") {
-    await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment_confirmation" });
-    await sendWhatsAppText(from, EFT_PROOF_RECEIVED_TEXT);
-    return;
-  }
-
-  await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment" });
-  await sendWhatsAppText(from, PAY_NOW_CLOSING_TEXT);
+  const amountCents = calculateTotalCents(lead.fork_selection as string | null, lead.tier_selection as string | null);
+  await updateLead(lead.id, { how_heard: resolved, current_step: "awaiting_payment_method" });
+  await sendWhatsAppText(from, buildPaymentIntroText(amountCents));
 }
 
 // Re-shows whatever the lead is currently waiting on, reusing the same copy each step

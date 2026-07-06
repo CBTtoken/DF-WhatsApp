@@ -40,9 +40,6 @@ export const PAY_NOW_CTA_BODY_TEXT = "Here's your secure payment link. Once paid
 
 export const PAY_NOW_CTA_BUTTON_TEXT = "Pay Now";
 
-export const PAY_NOW_CLOSING_TEXT =
-  "Perfect, thank you! 🎉 Once your payment goes through, you'll get an automatic confirmation right here.";
-
 export const PAYMENT_INIT_FAILED_TEXT =
   "Sorry, something went wrong setting up your payment link. Our team will follow up shortly.";
 
