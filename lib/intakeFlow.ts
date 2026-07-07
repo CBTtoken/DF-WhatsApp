@@ -1,3 +1,5 @@
+import { BUSINESS_DETAILS_HEADER, withHeader } from "./sectionHeaders";
+
 export type IntakeField = {
   step: string;
   column: string;
@@ -9,7 +11,11 @@ export type IntakeField = {
 
 function buildChoiceQuestion(prompt: string, options: string[]): string {
   const lines = options.map((option, index) => `${index + 1}. ${option}`).join("\n");
-  return `${prompt}\n\n${lines}`;
+  return withHeader(BUSINESS_DETAILS_HEADER, `${prompt}\n\n${lines}`);
+}
+
+function q(text: string): string {
+  return withHeader(BUSINESS_DETAILS_HEADER, text);
 }
 
 const PROVINCES = [
@@ -25,7 +31,8 @@ const PROVINCES = [
 ];
 
 // Business details only (see CLAUDE.md section 6, Data Model). Name, business name,
-// and email are captured earlier (before the fork); how_heard is asked at the very end.
+// email, and cell number are captured earlier (before the fork); how_heard is asked
+// right before payment.
 export const INTAKE_FIELDS: IntakeField[] = [
   {
     step: "intake_province",
@@ -33,47 +40,58 @@ export const INTAKE_FIELDS: IntakeField[] = [
     question: buildChoiceQuestion("Now let's talk about your business. Which province are you based in?", PROVINCES),
     options: PROVINCES,
   },
-  { step: "intake_industry", column: "industry", question: "Thanks! What industry or type of business is this?" },
+  { step: "intake_industry", column: "industry", question: q("Thanks! What industry or type of business is this?") },
   {
     step: "intake_business_address",
     column: "business_address",
-    question:
-      'What\'s your business address? This becomes the pin on your Google Maps listing, so people can get directions straight from your webpage. Reply "Online" if you don\'t have a physical location.',
+    question: q(
+      'What\'s your business address? This becomes the pin on your Google Maps listing, so people can get directions straight from your webpage. Reply "Online" if you don\'t have a physical location.'
+    ),
   },
   {
     step: "intake_business_description",
     column: "business_description",
-    question: "Tell me a bit more about your business, what you do, your services, and the areas you cover, in your own words.",
+    question: q("Tell me a bit more about your business, what you do, your services, and the areas you cover, in your own words."),
   },
   {
     step: "intake_tagline",
     column: "tagline",
-    question: 'Got a tagline or slogan? Reply "skip" if not.',
+    question: q('Got a tagline or slogan? Reply "skip" if not.'),
   },
   {
     step: "intake_products_services",
     column: "products_services",
-    question: "What are your main products or services?",
+    question: q("What are your main products or services?"),
+  },
+  {
+    step: "intake_company_reg_number",
+    column: "company_reg_number",
+    question: q('Got a company registration number? Reply "skip" if you\'re not registered yet.'),
+  },
+  {
+    step: "intake_vat_number",
+    column: "vat_number",
+    question: q('And a VAT number, if you have one? Reply "skip" if not applicable.'),
   },
   {
     step: "intake_business_story",
     column: "additional_notes",
-    question: "Last one about the business, when did you get started, and what makes you stand out from others?",
+    question: q("Last one about the business, when did you get started, and what makes you stand out from others?"),
   },
   {
     step: "intake_facebook_link",
     column: "facebook_link",
-    question: 'Almost done! Got a Facebook page? Share the link, or reply "skip".',
+    question: q('Almost done! Got a Facebook page? Share the link, or reply "skip".'),
   },
   {
     step: "intake_instagram_link",
     column: "instagram_link",
-    question: 'How about Instagram? Share the link, or reply "skip".',
+    question: q('How about Instagram? Share the link, or reply "skip".'),
   },
   {
     step: "intake_existing_website",
     column: "existing_website",
-    question: 'Last question here, do you already have a website? Share the link, or reply "none".',
+    question: q('Last question here, do you already have a website? Share the link, or reply "none".'),
   },
 ];
 

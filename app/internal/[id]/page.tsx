@@ -10,7 +10,10 @@ const FIELD_GROUPS: { title: string; fields: { label: string; column: string }[]
     fields: [
       { label: "Full name", column: "full_name" },
       { label: "Email", column: "email" },
+      { label: "Cell number", column: "cell_number" },
       { label: "WhatsApp", column: "whatsapp_number" },
+      { label: "Last message", column: "last_message_text" },
+      { label: "Last message at", column: "last_message_at" },
     ],
   },
   {
@@ -23,6 +26,8 @@ const FIELD_GROUPS: { title: string; fields: { label: string; column: string }[]
       { label: "Description", column: "business_description" },
       { label: "Tagline", column: "tagline" },
       { label: "Products/services", column: "products_services" },
+      { label: "Company reg number", column: "company_reg_number" },
+      { label: "VAT number", column: "vat_number" },
       { label: "Business story", column: "additional_notes" },
       { label: "Facebook", column: "facebook_link" },
       { label: "Instagram", column: "instagram_link" },

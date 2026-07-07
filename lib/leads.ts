@@ -53,6 +53,7 @@ export async function createHandoffFlag(leadId: string, reason: string) {
 export async function resetLead(id: string) {
   await updateLead(id, {
     current_step: "main_menu",
+    paused_step: null,
     menu_selection: null,
     fork_selection: null,
     tier_selection: null,
@@ -60,12 +61,15 @@ export async function resetLead(id: string) {
     full_name: null,
     business_name: null,
     email: null,
+    cell_number: null,
     province: null,
     industry: null,
     business_address: null,
     business_description: null,
     tagline: null,
     products_services: null,
+    company_reg_number: null,
+    vat_number: null,
     additional_notes: null,
     facebook_link: null,
     instagram_link: null,
@@ -76,6 +80,7 @@ export async function resetLead(id: string) {
     payment_method: null,
     payment_status: "not_started",
     paystack_reference: null,
+    page_live: false,
   });
 }
 

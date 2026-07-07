@@ -7,18 +7,31 @@ import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 // list would only ever show whatever leads existed at the last deploy, not live data.
 export const dynamic = "force-dynamic";
 
+function daysSince(dateString: string | null): string {
+  if (!dateString) return "-";
+  const days = Math.floor((Date.now() - new Date(dateString).getTime()) / (1000 * 60 * 60 * 24));
+  if (days <= 0) return "today";
+  if (days === 1) return "1 day ago";
+  return `${days} days ago`;
+}
+
 export default async function InternalInboxPage() {
   const supabase = getSupabaseAdmin();
   const { data: leads } = await supabase
     .from("leads")
     .select(
-      "id, whatsapp_number, full_name, business_name, current_step, payment_method, payment_status, page_live, updated_at, handoff_flags(resolved)"
+      "id, whatsapp_number, full_name, business_name, current_step, payment_method, payment_status, page_live, updated_at, last_message_text, last_message_at, handoff_flags(resolved)"
     )
-    .order("updated_at", { ascending: false });
+    .order("last_message_at", { ascending: false, nullsFirst: false });
 
   return (
-    <main style={{ maxWidth: 1150, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <h1>Leads Inbox</h1>
+    <main style={{ maxWidth: 1300, margin: "40px auto", fontFamily: "sans-serif" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h1>Leads Inbox</h1>
+        <Link href="/internal/export" style={{ padding: "8px 16px", border: "1px solid #1F3B57", borderRadius: 4 }}>
+          Download Excel
+        </Link>
+      </div>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -27,7 +40,7 @@ export default async function InternalInboxPage() {
             <th style={cellStyle}>Business</th>
             <th style={cellStyle}>Step</th>
             <th style={cellStyle}>Payment</th>
-            <th style={cellStyle}>Updated</th>
+            <th style={cellStyle}>Last Message</th>
             <th style={cellStyle}>Details</th>
             <th style={cellStyle}>Actions</th>
             <th style={cellStyle}>Reply</th>
@@ -43,6 +56,7 @@ export default async function InternalInboxPage() {
             const needsEftConfirm =
               lead.payment_method === "eft" && lead.current_step === "awaiting_payment_confirmation";
             const needsPageLive = lead.payment_status === "confirmed" && !lead.page_live;
+            const stale = !lead.page_live && lead.payment_status !== "confirmed";
 
             return (
               <tr key={lead.id}>
@@ -57,7 +71,14 @@ export default async function InternalInboxPage() {
                   {lead.payment_method ?? "-"} / {lead.payment_status}
                   {lead.page_live && <div style={{ color: "green", fontSize: 12 }}>Page live</div>}
                 </td>
-                <td style={cellStyle}>{new Date(lead.updated_at).toLocaleString()}</td>
+                <td style={{ ...cellStyle, maxWidth: 220 }}>
+                  <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {lead.last_message_text ?? "-"}
+                  </div>
+                  <div style={{ fontSize: 12, color: stale ? "#D95F2B" : "#666" }}>
+                    {daysSince(lead.last_message_at)}
+                  </div>
+                </td>
                 <td style={cellStyle}>
                   <Link href={`/internal/${lead.id}`}>View</Link>
                 </td>

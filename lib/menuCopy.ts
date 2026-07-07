@@ -42,7 +42,7 @@ Ready to get started? Reply *4*.`;
 export const HANDOFF_ACK_TEXT =
   "Got it 😊 I'll get a member of our team to reach out to you directly shortly. If they take a while, you can message them directly at +27723110570.";
 
-export const FORK_TEXT = `Just one more thing before we get into the details, do you want just your DigitalFlyer webpage, or the full RE:Biz Nomads experience?
+export const FORK_TEXT = `Just one more thing before we get into the details 😊 Do you want just your DigitalFlyer webpage, or the full RE:Biz Nomads experience?
 
 1. Just my DigitalFlyer webpage
 2. RE:Biz Nomads, webpage plus community`;
@@ -51,7 +51,7 @@ export const FORK_INVALID_TEXT = `Sorry, please reply with 1 or 2.
 
 ${FORK_TEXT}`;
 
-export const DF_TYPE_TEXT = `Got it! Would you like to build it yourself, or have our team build it for you?
+export const DF_TYPE_TEXT = `Got it! 👍 Would you like to build it yourself, or have our team build it for you?
 
 1. DIY, R1,199 for the year
 2. Done for you, R1,599 for the year`;
@@ -65,4 +65,13 @@ export function buildReBizTierAckText(slotsRemaining: number): string {
     return "Amazing choice! You're in as a *Founding Nomad*, R750 for the year, locked in for life. 🎉";
   }
   return "Amazing choice! RE:Biz Nomads membership is R1,500 for the year.";
+}
+
+export const RETURNING_CUSTOMER_TEXT =
+  "Thank you for your message! 😊 We've noticed your page is already active, but if you'd like to speak to someone, please message 0723110570 and our team will assist.";
+
+export function buildMenuNavigatedText(): string {
+  return `No problem! Here's the main menu, your progress is saved, just type *continue* anytime to pick back up.
+
+${MENU_OPTIONS_TEXT}`;
 }

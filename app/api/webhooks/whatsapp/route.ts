@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildBusinessNameQuestion, EMAIL_QUESTION, GET_STARTED_INTRO_AND_NAME_QUESTION } from "@/lib/basicsCopy";
+import {
+  buildBusinessNameQuestion,
+  CELL_NUMBER_INVALID_TEXT,
+  CELL_NUMBER_QUESTION,
+  EMAIL_INVALID_TEXT,
+  EMAIL_QUESTION,
+  GET_STARTED_INTRO_AND_NAME_QUESTION,
+} from "@/lib/basicsCopy";
 import { encrypt } from "@/lib/crypto";
 import {
   createHandoffFlag,
@@ -21,6 +28,8 @@ import { HOW_HEARD_INVALID_TEXT, buildHowHeardQuestion, resolveHowHeardAnswer } 
 import { downloadAndStoreWhatsAppMedia } from "@/lib/media";
 import {
   buildGreetingText,
+  buildMenuNavigatedText,
+  buildReBizTierAckText,
   DF_TYPE_INVALID_TEXT,
   DF_TYPE_TEXT,
   FAQ_TEXT,
@@ -31,7 +40,7 @@ import {
   MENU_OPTIONS_TEXT,
   MORE_INFO_TEXT,
   PRICING_TEXT,
-  buildReBizTierAckText,
+  RETURNING_CUSTOMER_TEXT,
 } from "@/lib/menuCopy";
 import {
   EFT_AWAITING_PROOF_TEXT,
@@ -58,7 +67,9 @@ import {
   isHelpCommand,
   isMenuCommand,
   isRestartCommand,
+  isStatusCommand,
 } from "@/lib/statusCommands";
+import { isValidEmail, isValidSaCellNumber, normalizeSaCellNumber } from "@/lib/validation";
 import { sendWhatsAppCtaUrl, sendWhatsAppText } from "@/lib/whatsapp";
 
 // Meta calls this once, when you save the webhook config, to prove you control the endpoint.
@@ -105,6 +116,13 @@ type IncomingMessage = {
   document?: { id?: string };
 };
 
+function getDisplayableMessageText(message: IncomingMessage): string | undefined {
+  if (message.type === "text") return message.text?.body?.trim();
+  if (message.type === "image") return "[Sent a photo]";
+  if (message.type === "document") return "[Sent a document]";
+  return undefined;
+}
+
 async function handleIncomingMessage(message: IncomingMessage, profileName?: string) {
   const from = message.from;
   if (!from) return;
@@ -119,19 +137,35 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
 
   const text = message.type === "text" ? message.text?.body?.trim() : undefined;
 
+  // Track the last thing this person sent us, regardless of what happens next, so
+  // the team can see how stale a lead is and reach out directly if needed.
+  const displayText = getDisplayableMessageText(message);
+  if (displayText) {
+    await updateLead(lead.id, { last_message_text: displayText, last_message_at: new Date().toISOString() });
+  }
+
+  // "restart" always works, even for a returning customer or someone handed off.
+  if (text && isRestartCommand(text)) {
+    await handleRestart(lead, from, profileName);
+    return;
+  }
+
+  // Page already live: they're a completed customer. Point them to direct support
+  // rather than routing back into whatever (now irrelevant) step they last left off.
+  if (lead.page_live) {
+    await sendWhatsAppText(from, RETURNING_CUSTOMER_TEXT);
+    return;
+  }
+
   if (lead.current_step === "handoff") {
-    // "restart", "continue", and "menu" still work here, they're explicit asks
-    // (disengage and start over, pick back up, or just check status), not an
-    // automatic bot loop back, so none of them undercut the human handoff itself.
-    if (text && isRestartCommand(text)) {
-      await handleRestart(lead, from, profileName);
-      return;
-    }
+    // "continue", "menu", and "status" still work here, they're explicit asks (pick
+    // back up, or just check where things stand), not an automatic bot loop back,
+    // so none of them undercut the human handoff itself.
     if (text && isContinueCommand(text)) {
       await handleContinue(lead, from);
       return;
     }
-    if (text && isMenuCommand(text)) {
+    if (text && (isMenuCommand(text) || isStatusCommand(text))) {
       await sendWhatsAppText(
         from,
         "You're currently waiting on a member of our team to help you out. Type *continue* once you're ready to pick back up, or *restart* to start over."
@@ -151,33 +185,41 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     return; // no other message types are meaningful outside the contexts above
   }
 
-  // "restart" always works, at any step, including right at the main menu, so it
-  // never gets mistaken for an invalid menu choice.
-  if (isRestartCommand(text)) {
-    await handleRestart(lead, from, profileName);
+  // "continue" resumes a paused conversation (set by "human" or "menu" below),
+  // from anywhere, as long as there's actually something paused to return to.
+  if (isContinueCommand(text) && lead.paused_step) {
+    await handleContinue(lead, from);
     return;
   }
 
-  // Remaining global commands: only for leads already partway through (not brand
-  // new, not already handed off, not sitting at the main menu where they don't
-  // apply), so someone who gets stuck, loses their message history, or wants help
-  // isn't stuck with no way out.
-  if (lead.current_step && lead.current_step !== "main_menu") {
-    if (isHelpCommand(text)) {
-      await createHandoffFlag(lead.id, "User requested help mid-flow");
-      await updateLead(lead.id, { paused_step: lead.current_step, current_step: "handoff" });
-      await sendWhatsAppText(
-        from,
-        "No problem, I'll get a real person to help you out. 🙋 Once you're sorted, just type *continue* and we'll pick up right where you left off."
-      );
-      return;
-    }
+  // "human" works from anywhere, including right at the main menu, pausing
+  // whatever they were doing so "continue" can bring them back to it later.
+  if (isHelpCommand(text)) {
+    await createHandoffFlag(lead.id, "User requested help mid-flow");
+    await updateLead(lead.id, { paused_step: lead.current_step, current_step: "handoff" });
+    await sendWhatsAppText(
+      from,
+      "No problem, I'll get a real person to help you out. 🙋 Once you're sorted, just type *continue* and we'll pick up right where you left off."
+    );
+    return;
+  }
 
-    if (isMenuCommand(text)) {
-      await sendWhatsAppText(from, buildProgressSummary(lead));
-      await sendWhatsAppText(from, await describeCurrentStep(lead));
+  // "menu" is real navigation to the interactive main menu (not a status recap,
+  // that's "status"/"recap" below), pausing progress the same way "human" does.
+  if (isMenuCommand(text)) {
+    if (lead.current_step === "main_menu") {
+      await sendWhatsAppText(from, MENU_OPTIONS_TEXT);
       return;
     }
+    await updateLead(lead.id, { paused_step: lead.current_step, current_step: "main_menu" });
+    await sendWhatsAppText(from, buildMenuNavigatedText());
+    return;
+  }
+
+  if (isStatusCommand(text)) {
+    await sendWhatsAppText(from, buildProgressSummary(lead));
+    await sendWhatsAppText(from, await describeCurrentStep(lead));
+    return;
   }
 
   if (lead.current_step === "main_menu") {
@@ -198,7 +240,21 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   }
 
   if (lead.current_step === "basics_email") {
-    await updateLead(lead.id, { email: text, current_step: "fork" });
+    if (!isValidEmail(text)) {
+      await sendWhatsAppText(from, EMAIL_INVALID_TEXT);
+      return;
+    }
+    await updateLead(lead.id, { email: text, current_step: "basics_cell_number" });
+    await sendWhatsAppText(from, CELL_NUMBER_QUESTION);
+    return;
+  }
+
+  if (lead.current_step === "basics_cell_number") {
+    if (!isValidSaCellNumber(text)) {
+      await sendWhatsAppText(from, CELL_NUMBER_INVALID_TEXT);
+      return;
+    }
+    await updateLead(lead.id, { cell_number: normalizeSaCellNumber(text), current_step: "fork" });
     await sendWhatsAppText(from, FORK_TEXT);
     return;
   }
@@ -257,7 +313,9 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
     return;
   }
 
-  // Sprint 6+ (confirmation and handoff) picks up the conversation from here.
+  // Terminal/waiting states (awaiting_payment, awaiting_payment_confirmation, etc.)
+  // fall through to here. Never go silent, even if there's nothing new to do.
+  await sendWhatsAppText(from, await describeCurrentStep(lead));
 }
 
 async function handleRestart(lead: Lead, from: string, profileName?: string) {
@@ -438,8 +496,8 @@ async function handleHowHeardAnswer(lead: Lead, text: string, from: string) {
 }
 
 // Re-shows whatever the lead is currently waiting on, reusing the same copy each step
-// already sends, used by the "menu"/"status" command so a resumed conversation asks
-// the exact same thing again rather than a generic restatement.
+// already sends, used by "status"/"recap" and "continue" so a resumed conversation
+// asks the exact same thing again rather than a generic restatement.
 async function describeCurrentStep(lead: Lead): Promise<string> {
   const step = lead.current_step ?? "";
 
@@ -453,6 +511,8 @@ async function describeCurrentStep(lead: Lead): Promise<string> {
       return buildBusinessNameQuestion((lead.full_name as string | null) || "there");
     case "basics_email":
       return EMAIL_QUESTION;
+    case "basics_cell_number":
+      return CELL_NUMBER_QUESTION;
     case "fork":
       return FORK_TEXT;
     case "fork_df_type":
