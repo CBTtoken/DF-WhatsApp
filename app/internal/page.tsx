@@ -26,12 +26,7 @@ export default async function InternalInboxPage() {
 
   return (
     <main style={{ maxWidth: 1300, margin: "40px auto", fontFamily: "sans-serif" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h1>Leads Inbox</h1>
-        <Link href="/internal/export" style={{ padding: "8px 16px", border: "1px solid #1F3B57", borderRadius: 4 }}>
-          Download Excel
-        </Link>
-      </div>
+      <h1>Leads Inbox</h1>
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -81,6 +76,8 @@ export default async function InternalInboxPage() {
                 </td>
                 <td style={cellStyle}>
                   <Link href={`/internal/${lead.id}`}>View</Link>
+                  {" · "}
+                  <Link href={`/internal/${lead.id}/export`}>Download</Link>
                 </td>
                 <td style={cellStyle}>
                   {needsEftConfirm && (

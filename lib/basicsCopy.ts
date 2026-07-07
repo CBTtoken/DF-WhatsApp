@@ -20,9 +20,21 @@ export const EMAIL_INVALID_TEXT = withHeader(
   "Hmm, that doesn't quite look like a valid email 🤔 Mind double-checking the spelling and sending it again?"
 );
 
+export function buildCellNumberConfirmQuestion(localNumber: string): string {
+  return withHeader(
+    GETTING_STARTED_HEADER,
+    `Quick check: is *${localNumber}* the best cell/WhatsApp number to show on your webpage? Reply *yes* or *no*.`
+  );
+}
+
+export const CELL_NUMBER_CONFIRM_INVALID_TEXT = withHeader(
+  GETTING_STARTED_HEADER,
+  'Just reply *yes* or *no* so I know which cell number to use.'
+);
+
 export const CELL_NUMBER_QUESTION = withHeader(
   GETTING_STARTED_HEADER,
-  "And what's the best cell number to reach you on? Just the 10 digits, like 0723110570."
+  "No problem, what's the correct cell number then? Just the 10 digits, like 0723110570."
 );
 
 export const CELL_NUMBER_INVALID_TEXT = withHeader(

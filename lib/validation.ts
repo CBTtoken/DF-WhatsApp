@@ -11,3 +11,13 @@ export function normalizeSaCellNumber(text: string): string {
 export function isValidSaCellNumber(text: string): boolean {
   return /^0\d{9}$/.test(normalizeSaCellNumber(text));
 }
+
+// WhatsApp sends numbers in international format without the "+" (e.g. "27723110570").
+// Converts that to the local 10-digit format South Africans actually recognize
+// (e.g. "0723110570"), so we can offer it back to them to confirm. Returns null for
+// any number that isn't a standard SA mobile in that format.
+export function saLocalFromWhatsAppNumber(whatsappNumber: string): string | null {
+  const digitsOnly = whatsappNumber.trim().replace(/\D/g, "");
+  if (!digitsOnly.startsWith("27") || digitsOnly.length !== 11) return null;
+  return `0${digitsOnly.slice(2)}`;
+}

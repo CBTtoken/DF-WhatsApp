@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
   buildBusinessNameQuestion,
+  buildCellNumberConfirmQuestion,
+  CELL_NUMBER_CONFIRM_INVALID_TEXT,
   CELL_NUMBER_INVALID_TEXT,
   CELL_NUMBER_QUESTION,
   EMAIL_INVALID_TEXT,
@@ -69,7 +71,7 @@ import {
   isRestartCommand,
   isStatusCommand,
 } from "@/lib/statusCommands";
-import { isValidEmail, isValidSaCellNumber, normalizeSaCellNumber } from "@/lib/validation";
+import { isValidEmail, isValidSaCellNumber, normalizeSaCellNumber, saLocalFromWhatsAppNumber } from "@/lib/validation";
 import { sendWhatsAppCtaUrl, sendWhatsAppText } from "@/lib/whatsapp";
 
 // Meta calls this once, when you save the webhook config, to prove you control the endpoint.
@@ -244,8 +246,25 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
       await sendWhatsAppText(from, EMAIL_INVALID_TEXT);
       return;
     }
-    await updateLead(lead.id, { email: text, current_step: "basics_cell_number" });
-    await sendWhatsAppText(from, CELL_NUMBER_QUESTION);
+    await updateLead(lead.id, { email: text });
+    await advanceToCellNumberStep(lead, from);
+    return;
+  }
+
+  if (lead.current_step === "basics_cell_number_confirm") {
+    const answer = normalizeYesNo(text);
+    if (answer === "yes") {
+      const localNumber = saLocalFromWhatsAppNumber(lead.whatsapp_number);
+      await updateLead(lead.id, { cell_number: localNumber, current_step: "fork" });
+      await sendWhatsAppText(from, FORK_TEXT);
+      return;
+    }
+    if (answer === "no") {
+      await updateLead(lead.id, { current_step: "basics_cell_number" });
+      await sendWhatsAppText(from, CELL_NUMBER_QUESTION);
+      return;
+    }
+    await sendWhatsAppText(from, CELL_NUMBER_CONFIRM_INVALID_TEXT);
     return;
   }
 
@@ -316,6 +335,26 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   // Terminal/waiting states (awaiting_payment, awaiting_payment_confirmation, etc.)
   // fall through to here. Never go silent, even if there's nothing new to do.
   await sendWhatsAppText(from, await describeCurrentStep(lead));
+}
+
+function normalizeYesNo(text: string): "yes" | "no" | null {
+  const normalized = text.trim().toLowerCase();
+  if (["yes", "y", "yep", "yeah", "correct"].includes(normalized)) return "yes";
+  if (["no", "n", "nope", "incorrect"].includes(normalized)) return "no";
+  return null;
+}
+
+// If their WhatsApp number converts cleanly to a local SA number, offer to use it
+// (one less thing to type) instead of asking them to type it out from scratch.
+async function advanceToCellNumberStep(lead: Lead, from: string) {
+  const localNumber = saLocalFromWhatsAppNumber(lead.whatsapp_number);
+  if (localNumber) {
+    await updateLead(lead.id, { current_step: "basics_cell_number_confirm" });
+    await sendWhatsAppText(from, buildCellNumberConfirmQuestion(localNumber));
+    return;
+  }
+  await updateLead(lead.id, { current_step: "basics_cell_number" });
+  await sendWhatsAppText(from, CELL_NUMBER_QUESTION);
 }
 
 async function handleRestart(lead: Lead, from: string, profileName?: string) {
@@ -511,6 +550,10 @@ async function describeCurrentStep(lead: Lead): Promise<string> {
       return buildBusinessNameQuestion((lead.full_name as string | null) || "there");
     case "basics_email":
       return EMAIL_QUESTION;
+    case "basics_cell_number_confirm": {
+      const localNumber = saLocalFromWhatsAppNumber(lead.whatsapp_number);
+      return localNumber ? buildCellNumberConfirmQuestion(localNumber) : CELL_NUMBER_QUESTION;
+    }
     case "basics_cell_number":
       return CELL_NUMBER_QUESTION;
     case "fork":

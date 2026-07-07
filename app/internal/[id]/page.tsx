@@ -101,8 +101,18 @@ export default async function LeadDetailPage({ params }: { params: Promise<{ id:
   return (
     <main style={{ maxWidth: 800, margin: "40px auto", fontFamily: "sans-serif" }}>
       <Link href="/internal">&larr; Back to inbox</Link>
-      <h1>{lead.business_name || lead.full_name || lead.whatsapp_number}</h1>
-      <p style={{ color: "#666" }}>Step: {lead.current_step ?? "-"}</p>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+        <div>
+          <h1 style={{ marginBottom: 4 }}>{lead.business_name || lead.full_name || lead.whatsapp_number}</h1>
+          <p style={{ color: "#666", margin: 0 }}>Step: {lead.current_step ?? "-"}</p>
+        </div>
+        <Link
+          href={`/internal/${lead.id}/export`}
+          style={{ padding: "8px 16px", border: "1px solid #1F3B57", borderRadius: 4, whiteSpace: "nowrap" }}
+        >
+          Download CSV
+        </Link>
+      </div>
 
       {FIELD_GROUPS.map((group) => (
         <div key={group.title} style={{ marginBottom: 24 }}>
