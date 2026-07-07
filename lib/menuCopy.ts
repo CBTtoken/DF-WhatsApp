@@ -39,8 +39,16 @@ Payable upfront for the year, no other fees.
 
 Ready to get started? Reply *4*.`;
 
-export const HANDOFF_ACK_TEXT =
-  "Got it 😊 I'll get a member of our team to reach out to you directly shortly. If they take a while, you can message them directly at +27723110570.";
+export const SUPPORT_NUMBER = "0723110570";
+
+export const HANDOFF_ACK_TEXT = `Got it 😊 I'll get a member of our team to reach out to you directly shortly. If they take a while, you can message them directly at ${SUPPORT_NUMBER}.`;
+
+// We only find out someone asked for help when we next check the inbox, so every
+// hand-off message repeats the direct number, giving them a way to reach us that
+// doesn't depend on us noticing in time.
+export const HELP_MIDFLOW_TEXT = `No problem, I'll get a real person to help you out. 🙋 If it's urgent, you can message our team directly on ${SUPPORT_NUMBER}. Once you're sorted, just type *continue* and we'll pick up right where you left off.`;
+
+export const HANDOFF_WAITING_TEXT = `You're currently waiting on a member of our team to help you out. If it's urgent, you can message them directly on ${SUPPORT_NUMBER}. Type *continue* once you're ready to pick back up, or *restart* to start over.`;
 
 export const FORK_TEXT = `Just one more thing before we get into the details 😊 Do you want just your DigitalFlyer webpage, or the full RE:Biz Nomads experience?
 
@@ -67,8 +75,7 @@ export function buildReBizTierAckText(slotsRemaining: number): string {
   return "Amazing choice! RE:Biz Nomads membership is R1,500 for the year.";
 }
 
-export const RETURNING_CUSTOMER_TEXT =
-  "Thank you for your message! 😊 We've noticed your page is already active, but if you'd like to speak to someone, please message 0723110570 and our team will assist.";
+export const RETURNING_CUSTOMER_TEXT = `Thank you for your message! 😊 We've noticed your page is already active, but if you'd like to speak to someone, please message ${SUPPORT_NUMBER} and our team will assist.`;
 
 export function buildMenuNavigatedText(): string {
   return `No problem! Here's the main menu, your progress is saved, just type *continue* anytime to pick back up.

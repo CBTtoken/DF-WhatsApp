@@ -38,6 +38,8 @@ import {
   FORK_INVALID_TEXT,
   FORK_TEXT,
   HANDOFF_ACK_TEXT,
+  HANDOFF_WAITING_TEXT,
+  HELP_MIDFLOW_TEXT,
   INVALID_SELECTION_TEXT,
   MENU_OPTIONS_TEXT,
   MORE_INFO_TEXT,
@@ -168,10 +170,7 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
       return;
     }
     if (text && (isMenuCommand(text) || isStatusCommand(text))) {
-      await sendWhatsAppText(
-        from,
-        "You're currently waiting on a member of our team to help you out. Type *continue* once you're ready to pick back up, or *restart* to start over."
-      );
+      await sendWhatsAppText(from, HANDOFF_WAITING_TEXT);
       return;
     }
     return; // human has taken over, no bot fallback loop otherwise
@@ -199,10 +198,7 @@ async function handleIncomingMessage(message: IncomingMessage, profileName?: str
   if (isHelpCommand(text)) {
     await createHandoffFlag(lead.id, "User requested help mid-flow");
     await updateLead(lead.id, { paused_step: lead.current_step, current_step: "handoff" });
-    await sendWhatsAppText(
-      from,
-      "No problem, I'll get a real person to help you out. 🙋 Once you're sorted, just type *continue* and we'll pick up right where you left off."
-    );
+    await sendWhatsAppText(from, HELP_MIDFLOW_TEXT);
     return;
   }
 
